@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "355394210028",
+    "project_id": "fstore-73acb",
+    "storage_bucket": "fstore-73acb.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:355394210028:android:a951402db3619523f3fdc9",
+        "android_client_info": {
+          "package_name": "com.example.newcap"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDAJNvek_2-mRzH6lmORn958K1RESnT5uY"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

@@ -1,0 +1,39 @@
+buildscript {
+    ext.kotlin_version = '1.9.0' // 이 부분을 최신 버전으로 변경합니다.
+    repositories {
+        google()
+        mavenCentral()
+    }
+    dependencies {
+        classpath "com.android.tools.build:gradle:7.0.4"
+        classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version" // 기존 kotlin_version 값을 kotlin_version 대신 kotlin_version으로 수정합니다.
+        // 다른 종속성들...
+    }
+}
+plugins {
+    // ...
+
+    // Add the dependency for the Google services Gradle plugin
+    id("com.google.gms.google-services") version "4.3.15" apply false
+
+}
+
+
+allprojects {
+    repositories {
+        google()
+        mavenCentral()
+    }
+}
+
+rootProject.buildDir = '../build'
+subprojects {
+    project.buildDir = "${rootProject.buildDir}/${project.name}"
+}
+subprojects {
+    project.evaluationDependsOn(':app')
+}
+
+tasks.register("clean", Delete) {
+    delete rootProject.buildDir
+}
