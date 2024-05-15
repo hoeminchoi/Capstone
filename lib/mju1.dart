@@ -3,6 +3,9 @@ import 'package:http/http.dart' as http;
 import 'package:html/parser.dart' as parser;
 import 'package:html/dom.dart' as dom;
 import 'package:url_launcher/url_launcher.dart';
+import 'keyword.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+
 
 class NoticeBoard extends StatefulWidget {
   @override
@@ -359,8 +362,11 @@ class _NoticeBoardState extends State<NoticeBoard> {
             case 1:
               break;
             case 2:
-            // Handle keyword button tap
-            // Navigate to keyword screen
+              var userId = FirebaseAuth.instance.currentUser?.uid ?? 'userId';
+              Navigator.push( // 키워드 화면으로 이동합니다.
+                context,
+                MaterialPageRoute(builder: (context) => KeywordPage(userId: userId,)),
+              );
               break;
             case 3:
             // Handle settings button tap

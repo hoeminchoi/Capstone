@@ -5,7 +5,7 @@ import 'package:html/dom.dart' as dom;
 Future<List<Map<String, String>>> fetchNotices(String baseUrl, int startPage, int endPage) async {
   List<Map<String, String>> notices = [];
   List<String> existingTitles = [];
-  String baseUrl2 = "https://www.mju.ac.kr/";
+  String baseUrl2 = "https://www.mju.ac.kr";
 
   for (int page = startPage; page <= endPage; page++) {
     String url = "$baseUrl?page=$page";
