@@ -1,6 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
-import 'bringData.dart';  // bringData.dart를 import
+import 'bringDormNotices.dart'; // bringDormNotices.dart를 import
+import 'bringNotices.dart'; // bringNotices.dart를 import
+
+// 이거 일단 간이 mju1.dart 야 계정이나 키워드 이런 건 일단 다 뺐어 불러와서 ui 상으로 표시 하는게 우선 같아서
+// 어떻게 적용해야 할지 모르겠다... 아직 하는 중인데 이것도 막 수정하다가 나온거라 오류 떠 수정해야 해
+// bringNotice.dart 랑 bringDomrNotices.dart 를 분리해서 각각 공지사항 정보를 리스트 맵으로 반환하게 했어
+// 왜냐하면 플러터는 2개 이상의 리스트 반환이 안되더라고
+// 우선 데이터 firestore 에 저장할 때 타임 스탬프를 넣어서 저장했고 불러올 때 타임스탬프 기준으로 내림차순으로 불러오게 했어
+// 이렇게 하긴 했는데 불러온 데이터를 어떻게 ui 로 표현해야 할지 모르겠다...
 
 class NoticeBoard extends StatefulWidget {
   @override
@@ -8,18 +16,17 @@ class NoticeBoard extends StatefulWidget {
 }
 
 class _NoticeBoardState extends State<NoticeBoard> {
-  late List<Map<String, String>> notices;
+  late List<Map<String, dynamic>> notices;
   late String currentCategory;
   late Map<String, String> categoryUrls;
   late Map<String, String> dorm_categoryUrls;
   TextEditingController searchController = TextEditingController();
-  Map<String, List<Map<String, String>>> allFetchedData = {};
-  bool isLoading = true;  // 로딩 상태를 추가합니다.
+  bool isLoading = true; // 로딩 상태를 추가합니다.
 
   @override
   void initState() {
     super.initState();
-    currentCategory = '일반 공지';
+    currentCategory = '일반공지';
     categoryUrls = {
       '일반공지': 'notices_일반공지',
       '행사공지': 'notices_행사공지',
@@ -35,43 +42,28 @@ class _NoticeBoardState extends State<NoticeBoard> {
       '기숙사공지': 'dormNotices_기숙사공지',
       '입퇴사공지': 'dormNotices_입퇴사공지',
     };
-    fetchData();  // 데이터를 가져옵니다.
+    fetchData(); // 데이터를 가져옵니다.
   }
 
   Future<void> fetchData() async {
-    allFetchedData = await bringData();
+    // bringNotices.dart나 bringDormNotices.dart에서 데이터를 가져옵니다.
+    notices = await bringNoticesFromFirestore(categoryUrls[currentCategory]!);
     setState(() {
-      notices = allFetchedData['notices_일반공지'] ?? [];
-      isLoading = false;  // 데이터를 가져왔으므로 로딩 상태를 false로 설정합니다.
+      isLoading = false; // 데이터를 가져왔으므로 로딩 상태를 false로 설정합니다.
     });
   }
 
-  void selectCategory(String category) {
-    setState(() {
-      currentCategory = category;
-      notices = allFetchedData[categoryUrls[currentCategory]!] ?? [];
-    });
-  }
-
-  void dorm_selectCategory(String category) {
+  void selectCategory(String category) async {
     setState(() {
       currentCategory = category;
-      notices = allFetchedData[dorm_categoryUrls[currentCategory]!] ?? [];
+      fetchData(); // 선택한 카테고리에 맞게 데이터를 가져옵니다.
     });
-  }
-
-  Future<void> launchUrl(String url) async {
-    if (await canLaunch(url)) {
-      await launch(url);
-    } else {
-      throw 'Could not launch $url';
-    }
   }
 
   void searchNotices(String keyword) {
-    List<Map<String, String>> filteredNotices = [];
+    List<Map<String, dynamic>> filteredNotices = [];
     for (var notice in notices) {
-      if (notice['title']!.toLowerCase().contains(keyword.toLowerCase())) {
+      if (notice['title'].toLowerCase().contains(keyword.toLowerCase())) {
         filteredNotices.add(notice);
       }
     }
@@ -158,7 +150,7 @@ class _NoticeBoardState extends State<NoticeBoard> {
                   ListTile(
                     title: Text(category),
                     onTap: () {
-                      dorm_selectCategory(category);
+                      selectCategory(category);
                       Navigator.pop(context);
                     },
                   ),
@@ -171,7 +163,8 @@ class _NoticeBoardState extends State<NoticeBoard> {
                   title: Text('자연'),
                   onTap: () {
                     // 도서관 홈페이지 URL
-                    String Y_libraryUrl = 'https://lib.mju.ac.kr/guide/bulletin/notice?max=10&offset=0&bulletinCategoryId=15';
+                    String Y_libraryUrl =
+                        'https://lib.mju.ac.kr/guide/bulletin/notice?max=10&offset=0&bulletinCategoryId=15';
                     launchUrl(Y_libraryUrl);
                     Navigator.pop(context); // Drawer를 닫습니다.
                   },
@@ -180,7 +173,8 @@ class _NoticeBoardState extends State<NoticeBoard> {
                   title: Text('인문'),
                   onTap: () {
                     // 도서관 홈페이지 URL
-                    String S_libraryUrl = 'https://lib.mju.ac.kr/guide/bulletin/notice?max=10&offset=0&bulletinCategoryId=14';
+                    String S_libraryUrl =
+                        'https://lib.mju.ac.kr/guide/bulletin/notice?max=10&offset=0&bulletinCategoryId=14';
                     launchUrl(S_libraryUrl);
                     Navigator.pop(context); // Drawer를 닫습니다.
                   },
@@ -190,23 +184,24 @@ class _NoticeBoardState extends State<NoticeBoard> {
           ],
         ),
       ),
-      body: isLoading  // 로딩 중일 때 로딩 표시를 추가합니다.
+      body: isLoading // 로딩 중일 때 로딩 표시를 추가합니다.
           ? Center(child: CircularProgressIndicator()) // 데이터 로딩 중이면 로딩 표시
           : notices.isNotEmpty
-          ? ListView.separated(
-              itemCount: notices.length,
-              separatorBuilder: (context, index) {
-                return Divider(
-                  color: Colors.grey[400],
-                  thickness: 1,
-                  height: 1,
-                );
-              },
-              itemBuilder: (context, index) {
-                String title = notices[index]['title']!;
-                String date = notices[index]['date']!;
-                String url = notices[index]['url']!;
-                Color? bgColor = index.isEven ? Colors.grey[200] : Colors.white;
+              ? ListView.separated(
+                  itemCount: notices.length,
+                  separatorBuilder: (context, index) {
+                    return Divider(
+                      color: Colors.grey[400],
+                      thickness: 1,
+                      height: 1,
+                    );
+                  },
+                  itemBuilder: (context, index) {
+                    String title = notices[index]['title'];
+                    String date = notices[index]['date'];
+                    String url = notices[index]['url'];
+                    Color? bgColor =
+                        index.isEven ? Colors.grey[200] : Colors.white;
 
                 bool isSpecialNotice = title.contains('일반공지');
 
