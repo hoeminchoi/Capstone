@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
-import 'package:html/parser.dart' as parser;
-import 'package:html/dom.dart' as dom;
 import 'package:url_launcher/url_launcher.dart';
+import 'bringNotices.dart'; // bringNotices.dart를 import
 import 'keyword.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:hive/hive.dart';
+import 'package:path_provider/path_provider.dart';
 
 
 class NoticeBoard extends StatefulWidget {
@@ -13,147 +14,82 @@ class NoticeBoard extends StatefulWidget {
 }
 
 class _NoticeBoardState extends State<NoticeBoard> {
-  late List<Map<String, String>> notices;
+  List<Map<String, dynamic>> notices=[];
   late String currentCategory;
   late Map<String, String> categoryUrls;
   late Map<String, String> dorm_categoryUrls;
-  late String baseUrl2;
-  late String dorm_baseUrl2;
   TextEditingController searchController = TextEditingController();
+  bool isLoading = true; // 로딩 상태를 추가합니다.
+  List<Map<String, dynamic>>  bookmarks = []; // 즐겨찾기 목록
+  late String userId; // 사용자의 UID를 저장할 변수 추가
+  late Box<Map> bookmarkBox; // Hive Box 초기화
+
 
   @override
   void initState() {
     super.initState();
-    currentCategory = '일반 공지';
-    baseUrl2 = "https://www.mju.ac.kr";
-    dorm_baseUrl2 = "https://dorm.mju.ac.kr";
+    currentCategory = '일반공지';
     categoryUrls = {
-      '일반 공지': 'https://www.mju.ac.kr/mjukr/255/subview.do',
-      '행사 공지': 'https://www.mju.ac.kr/mjukr/256/subview.do',
-      '학사 공지': 'https://www.mju.ac.kr/mjukr/257/subview.do',
-      '장학/학자금 공지': 'https://www.mju.ac.kr/mjukr/259/subview.do',
-      '진로/취업/창업 공지': 'https://www.mju.ac.kr/mjukr/260/subview.do',
-      '학생활동 공지': 'https://www.mju.ac.kr/mjukr/5364/subview.do',
-      '입찰 공지': 'https://www.mju.ac.kr/mjukr/261/subview.do',
-      '대학 안전 공지': 'https://www.mju.ac.kr/mjukr/8972/subview.do',
-      '학칙개정 사전 공고': 'https://www.mju.ac.kr/mjukr/4450/subview.do',
+      '일반공지': 'notices_일반공지',
+      '행사공지': 'notices_행사공지',
+      '학사공지': 'notices_학사공지',
+      '장학학자금공지': 'notices_장학학자금공지',
+      '진로취업창업공지': 'notices_진로취업창업공지',
+      '학생활동공지': 'notices_학생활동공지',
+      '입찰공지': 'notices_입찰공지',
+      '대학안전공지': 'notices_대학안전공지',
+      '학칙개정 사전공고': 'notices_학칙개정사전공고',
     };
     dorm_categoryUrls = {
-      '기숙사공지': 'https://dorm.mju.ac.kr/dorm/6729/subview.do',
-      '입퇴사공지': 'https://dorm.mju.ac.kr/dorm/7792/subview.do',
+      '기숙사공지': 'dormNotices_기숙사공지',
+      '입퇴사공지': 'dormNotices_입퇴사공지',
     };
-    fetchNotices(categoryUrls[currentCategory]!, 1, 5);
+    _initializeHive(); // Hive 초기화
+    userId = FirebaseAuth.instance.currentUser?.uid ?? '';
+    fetchData(); // 데이터를 가져옵니다.
+
+  }
+  Future<void> _initializeHive() async {
+    final appDocumentDir = await getApplicationDocumentsDirectory();
+    Hive.init(appDocumentDir.path);
+    // 'bookmarkBox'라는 이름의 Hive Box를 열고 초기화합니다.
+    bookmarkBox = await Hive.openBox<Map>('bookmarkBox');
   }
 
-  Future<void> fetchNotices(String baseUrl, int startPage, int endPage) async {
-    notices = [];
-    List<String> existingTitles = [];
-
-    for (int page = startPage; page <= endPage; page++) {
-      String url = "$baseUrl?page=$page";
-      http.Response response = await http.get(Uri.parse(url));
-      if (response.statusCode == 200) {
-        dom.Document document = parser.parse(response.body);
-        document.querySelectorAll('.fnLeft').forEach((element) {
-          element.remove();
-        });
-        List<dom.Element> linkElements =
-        document.querySelectorAll('a[href^="/bbs/mjukr/"][onclick^="jf_viewArtcl"]');
-        List<dom.Element> dateElements =
-        document.querySelectorAll('td._artclTdRdate');
-        for (int i = 0; i < linkElements.length; i++) {
-          var link = linkElements[i];
-          String? href = link.attributes['href'];
-          if (href != null) {
-            String noticeTitle = link.text.trim();
-            noticeTitle = noticeTitle.replaceAll('새글', '');
-
-            String noticeDate = dateElements[i].text.trim();
-
-            if (!existingTitles.contains(noticeTitle)) {
-              setState(() {
-                notices.add({
-                  'title': noticeTitle,
-                  'date': noticeDate,
-                  'url': "$baseUrl2$href"
-                });
-                existingTitles.add(noticeTitle);
-              });
-            }
-          }
-        }
-      }
-    }
-  }
-
-  Future<void> dorm_fetchNotices(String baseUrl, int startPage, int endPage) async {
-    notices = []; // Reset notices list before fetching new notices
-    List<String> existingTitles = []; // Reset existingTitles list
-
-    for (int page = startPage; page <= endPage; page++) {
-      String url = "$baseUrl?page=$page";
-      http.Response response = await http.get(Uri.parse(url));
-      if (response.statusCode == 200) {
-        dom.Document document = parser.parse(response.body);
-        document.querySelectorAll('.fnLeft').forEach((element) {
-          element.remove();
-        });
-        List<dom.Element> linkElements =
-        document.querySelectorAll('a[href^="/bbs/dorm/"][onclick^="jf_viewArtcl"]');
-        List<dom.Element> dateElements =
-        document.querySelectorAll('td._artclTdRdate');
-        for (int i = 0; i < linkElements.length; i++) {
-          var link = linkElements[i];
-          String? href = link.attributes['href'];
-          if (href != null) {
-            String noticeTitle = link.text.trim();
-            noticeTitle = noticeTitle.replaceAll('새글', '');
-            String noticeType = document.querySelector('#contentWrap > div.h1Title')?.text.trim() ?? '';
-
-            String noticeDate = dateElements[i].text.trim();
-
-            if (!existingTitles.contains(noticeTitle)) {
-              setState(() {
-                notices.add({
-                  'noticetype': noticeType,
-                  'title': noticeTitle,
-                  'date': noticeDate,
-                  'url': "$dorm_baseUrl2$href" // baseUrl2로 변경
-                });
-                existingTitles.add(noticeTitle);
-              });
-            }
-          }
-        }
-      }
-    }
-  }
-
-  Future<void> launchUrl(String url) async {
-    if (await canLaunch(url)) {
-      await launch(url);
-    } else {
-      throw 'Could not launch $url';
-    }
-  }
-
-  void selectCategory(String category) {
+  Future<void> fetchData() async {
+    // bringNotices.dart나 bringDormNotices.dart에서 데이터를 가져옵니다.
+    notices = await bringNoticesFromFirestore(categoryUrls[currentCategory]!);
     setState(() {
-      currentCategory = category;
-      fetchNotices(categoryUrls[currentCategory]!, 1, 5);
+      isLoading = false; // 데이터를 가져왔으므로 로딩 상태를 false로 설정합니다.
     });
   }
-  void dorm_selectCategory(String category) {
+
+  Future<void> dormfetchData() async {
+    // bringNotices.dart나 bringDormNotices.dart에서 데이터를 가져옵니다.
+    notices = await bringNoticesFromFirestore(dorm_categoryUrls[currentCategory]!);
+    setState(() {
+      isLoading = false; // 데이터를 가져왔으므로 로딩 상태를 false로 설정합니다.
+    });
+  }
+
+  void selectCategory(String category) async {
     setState(() {
       currentCategory = category;
-      dorm_fetchNotices(dorm_categoryUrls[currentCategory]!, 1, 5);
+      fetchData(); // 선택한 카테고리에 맞게 데이터를 가져옵니다.
+    });
+  }
+
+  void dormselectCategory(String category) async {
+    setState(() {
+      currentCategory = category;
+      dormfetchData(); // 선택한 카테고리에 맞게 데이터를 가져옵니다.
     });
   }
 
   void searchNotices(String keyword) {
-    List<Map<String, String>> filteredNotices = [];
+    List<Map<String, dynamic>> filteredNotices = [];
     for (var notice in notices) {
-      if (notice['title']!.toLowerCase().contains(keyword.toLowerCase())) {
+      if (notice['title'].toLowerCase().contains(keyword.toLowerCase())) {
         filteredNotices.add(notice);
       }
     }
@@ -161,6 +97,49 @@ class _NoticeBoardState extends State<NoticeBoard> {
       notices = filteredNotices;
     });
   }
+  void launchUrl(String url) async {
+    // URL이 유효한지 확인합니다.
+    if (Uri.tryParse(url) != null) {
+      // 유효한 URL이면 실행합니다.
+      if (await canLaunch(url)) {
+        await launch(url);
+      } else {
+        throw 'Could not launch $url';
+      }
+    } else {
+      // 유효하지 않은 URL인 경우 오류를 처리합니다.
+      print('Invalid URL: $url');
+    }
+  }
+  void toggleBookmark(String url, String title, String date) async {
+    final bookmarkData = {
+      'title': title,
+      'date': date,
+      'url': url,
+    };
+
+    // Hive에 즐겨찾기 정보 저장
+    if (isBookmarked(url)) {
+      // 즐겨찾기에서 제거
+      bookmarkBox.delete(url);
+    } else {
+      // 즐겨찾기에 추가
+      bookmarkBox.put(url, bookmarkData);
+    }
+
+    // UI 갱신
+    setState(() {
+      // Hive에서 모든 즐겨찾기 정보를 가져와서 'bookmarks' 변수에 할당
+      bookmarks = bookmarkBox.values.map<Map<String, dynamic>>((e) => Map<String, dynamic>.from(e)).toList();
+    });
+  }
+
+  bool isBookmarked(String url) {
+    // 해당 URL이 이미 즐겨찾기되어 있는지 확인
+    return bookmarkBox.containsKey(url);
+  }
+
+
 
   @override
   Widget build(BuildContext context) {
@@ -240,7 +219,7 @@ class _NoticeBoardState extends State<NoticeBoard> {
                   ListTile(
                     title: Text(category),
                     onTap: () {
-                      dorm_selectCategory(category);
+                      dormselectCategory(category);
                       Navigator.pop(context);
                     },
                   ),
@@ -252,19 +231,17 @@ class _NoticeBoardState extends State<NoticeBoard> {
                 ListTile(
                   title: Text('자연'),
                   onTap: () {
-                    // 도서관 홈페이지 URL
                     String Y_libraryUrl = 'https://lib.mju.ac.kr/guide/bulletin/notice?max=10&offset=0&bulletinCategoryId=15';
                     launchUrl(Y_libraryUrl);
-                    Navigator.pop(context); // Drawer를 닫습니다.
+                    Navigator.pop(context);
                   },
                 ),
                 ListTile(
                   title: Text('인문'),
                   onTap: () {
-                    // 도서관 홈페이지 URL
                     String S_libraryUrl = 'https://lib.mju.ac.kr/guide/bulletin/notice?max=10&offset=0&bulletinCategoryId=14';
                     launchUrl(S_libraryUrl);
-                    Navigator.pop(context); // Drawer를 닫습니다.
+                    Navigator.pop(context);
                   },
                 ),
               ],
@@ -286,11 +263,9 @@ class _NoticeBoardState extends State<NoticeBoard> {
           String title = notices[index]['title']!;
           String date = notices[index]['date']!;
           String url = notices[index]['url']!;
-          Color? bgColor =
-          index.isEven ? Colors.grey[200] : Colors.white;
+          Color? bgColor = index.isEven ? Colors.grey[200] : Colors.white;
 
           bool isSpecialNotice = title.contains('일반공지');
-
           title = title.replaceAll(RegExp(r'\[[^\]]*일반공지[^\]]*\]'), '');
 
           return GestureDetector(
@@ -312,9 +287,17 @@ class _NoticeBoardState extends State<NoticeBoard> {
                       Expanded(
                         child: Text(
                           title,
-                          style: TextStyle(
-                              fontSize: 18, fontWeight: FontWeight.bold),
+                          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                         ),
+                      ),
+                      IconButton(
+                        icon: Icon(
+                          isBookmarked(url) ? Icons.star : Icons.star_border,
+                          color: Colors.yellow[800],
+                        ),
+                        onPressed: () {
+                          toggleBookmark(url, title, date);
+                        },
                       ),
                     ],
                   ),
@@ -329,7 +312,7 @@ class _NoticeBoardState extends State<NoticeBoard> {
           );
         },
       )
-          : Center(child: CircularProgressIndicator()), // 데이터 로딩 중이면 로딩 표시
+          : Center(child: CircularProgressIndicator()),
       bottomNavigationBar: BottomNavigationBar(
         items: [
           BottomNavigationBarItem(
@@ -349,30 +332,30 @@ class _NoticeBoardState extends State<NoticeBoard> {
             label: '설정',
           ),
         ],
-        currentIndex: 0, // 현재 선택된 아이템의 인덱스
+        currentIndex: 0,
         selectedItemColor: Colors.lightBlue,
         unselectedItemColor: Colors.black54,
         unselectedLabelStyle: TextStyle(color: Colors.grey[700]),
         showUnselectedLabels: true,
         onTap: (index) {
-          // Handle item tap
           switch (index) {
             case 0:
-            // Handle home button tap
-              selectCategory('일반 공지');
+              selectCategory('일반공지');
               break;
             case 1:
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => BookmarkScreen()),
+              );
               break;
             case 2:
-              var userId = FirebaseAuth.instance.currentUser?.uid ?? 'userId';
-              Navigator.push( // 키워드 화면으로 이동합니다.
+              Navigator.push(
                 context,
                 MaterialPageRoute(builder: (context) => KeywordPage(userId: userId,)),
               );
               break;
             case 3:
-            // Handle settings button tap
-            // Navigate to settings screen
+            // 설정 화면으로 이동하는 코드를 여기에 추가할 수 있습니다.
               break;
           }
         },
@@ -380,3 +363,56 @@ class _NoticeBoardState extends State<NoticeBoard> {
     );
   }
 }
+
+class BookmarkScreen extends StatefulWidget {
+  @override
+  _BookmarkScreenState createState() => _BookmarkScreenState();
+}
+
+class _BookmarkScreenState extends State<BookmarkScreen> {
+  late Box<Map> bookmarkBox; // Hive Box 초기화
+
+  @override
+  void initState() {
+    super.initState();
+    _openBox(); // Hive Box 열기
+  }
+
+  Future<void> _openBox() async {
+    // 이미 열려 있는 경우 다시 열지 않습니다.
+    if (!Hive.isBoxOpen('bookmarkBox')) {
+      // 새로운 인스턴스로 열기
+      bookmarkBox = await Hive.openBox<Map>('bookmarkBox');
+    } else {
+      // 이미 열려 있는 경우 이미 있는 인스턴스 사용
+      bookmarkBox = Hive.box<Map>('bookmarkBox');
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Text('즐겨찾기'),
+      ),
+      body: ListView.builder(
+        itemCount: bookmarkBox.length,
+        itemBuilder: (context, index) {
+          final key = bookmarkBox.keyAt(index);
+          final bookmarkInfo = bookmarkBox.get(key)!;
+          final title = bookmarkInfo['title']!;
+          final date = bookmarkInfo['date']!;
+          final url = bookmarkInfo['url']!;
+          return ListTile(
+            title: Text(title),
+            subtitle: Text(date),
+            onTap: () {
+              launchUrl(Uri.parse(url));
+            },
+          );
+        },
+      ),
+    );
+  }
+}
+

@@ -1,11 +1,12 @@
 import 'package:http/http.dart' as http;
 import 'package:html/parser.dart' as parser;
 import 'package:html/dom.dart' as dom;
+import 'package:intl/intl.dart'; // 타임스탬프 형식을 위해 추가
 
 Future<List<Map<String, String>>> dormFetchNotices(String baseUrl, int startPage, int endPage) async {
   List<Map<String, String>> dormNotices = [];
   List<String> existingTitles = [];
-  String dorm_baseUrl2 = "https://dorm.mju.ac.kr";
+  String dormBaseUrl2 = "https://dorm.mju.ac.kr";
 
   for (int page = startPage; page <= endPage; page++) {
     String url = "$baseUrl?page=$page";
@@ -29,12 +30,17 @@ Future<List<Map<String, String>>> dormFetchNotices(String baseUrl, int startPage
           noticeTitle = noticeTitle.replaceAll('새글', '');
           String noticeDate = dateElements[i].text.trim();
 
+          // 일반공지 여부 확인 및 제목 수정
+          bool isSpecialNotice = noticeTitle.contains('일반공지');
+          noticeTitle = noticeTitle.replaceAll(RegExp(r'\[[^\]]*일반공지[^\]]*\]'), '');
+
           if (!existingTitles.contains(noticeTitle)) {
+
             dormNotices.add({
-              'category':noticeType,
+              'category': noticeType,
               'title': noticeTitle,
               'date': noticeDate,
-              'url': "$dorm_baseUrl2$href"
+              'url': "$dormBaseUrl2$href",
             });
             existingTitles.add(noticeTitle);
           }

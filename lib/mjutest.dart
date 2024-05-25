@@ -3,7 +3,8 @@ import 'package:http/http.dart' as http;
 import 'package:html/parser.dart' as parser;
 import 'package:html/dom.dart' as dom;
 import 'package:url_launcher/url_launcher.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'keyword.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 class NoticeBoard extends StatefulWidget {
   @override
@@ -11,15 +12,14 @@ class NoticeBoard extends StatefulWidget {
 }
 
 class _NoticeBoardState extends State<NoticeBoard> {
-  List<Map<String, String>> notices=[];
+  late List<Map<String, String>> notices;
   late String currentCategory;
   late Map<String, String> categoryUrls;
   late Map<String, String> dorm_categoryUrls;
   late String baseUrl2;
   late String dorm_baseUrl2;
   TextEditingController searchController = TextEditingController();
-  FirebaseFirestore firestore = FirebaseFirestore.instance;
-
+  List<String> bookmarks = []; // 즐겨찾기 목록
 
   @override
   void initState() {
@@ -42,122 +42,90 @@ class _NoticeBoardState extends State<NoticeBoard> {
       '기숙사공지': 'https://dorm.mju.ac.kr/dorm/6729/subview.do',
       '입퇴사공지': 'https://dorm.mju.ac.kr/dorm/7792/subview.do',
     };
-    fetchNotices(categoryUrls, 1, 5);
-    dorm_fetchNotices(dorm_categoryUrls, 1, 5);
-    //fetchNoticesFromFirestore(currentCategory);
+    fetchNotices(categoryUrls[currentCategory]!, 1, 5);
   }
 
-  Future<void> fetchNotices(Map<String, String> categoryUrls, int startPage, int endPage) async {
-    try {
-      List<String> existingTitles = []; // 중복 확인용 리스트
-      List<Map<String, String>> noticeList = []; // 공지사항 리스트
+  Future<void> fetchNotices(String baseUrl, int startPage, int endPage) async {
+    notices = [];
+    List<String> existingTitles = [];
 
-      for (String category in categoryUrls.values) {
-        for (int page = startPage; page <= endPage; page++) {
-          String url = "${categoryUrls[category]}?page=$page";
-          http.Response response = await http.get(Uri.parse(url));
+    for (int page = startPage; page <= endPage; page++) {
+      String url = "$baseUrl?page=$page";
+      http.Response response = await http.get(Uri.parse(url)); // 수정된 부분
+      if (response.statusCode == 200) {
+        dom.Document document = parser.parse(response.body);
+        document.querySelectorAll('.fnLeft').forEach((element) {
+          element.remove();
+        });
+        List<dom.Element> linkElements =
+        document.querySelectorAll('a[href^="/bbs/mjukr/"][onclick^="jf_viewArtcl"]');
+        List<dom.Element> dateElements =
+        document.querySelectorAll('td._artclTdRdate');
+        for (int i = 0; i < linkElements.length; i++) {
+          var link = linkElements[i];
+          String? href = link.attributes['href'];
+          if (href != null) {
+            String noticeTitle = link.text.trim();
+            noticeTitle = noticeTitle.replaceAll('새글', '');
 
-          if (response.statusCode == 200) {
-            dom.Document document = parser.parse(response.body);
-            document.querySelectorAll('.fnLeft').forEach((element) {
-              element.remove();
-            });
+            String noticeDate = dateElements[i].text.trim();
 
-            List<dom.Element> linkElements = document.querySelectorAll('a[href^="/bbs/mjukr/"][onclick^="jf_viewArtcl"]');
-            List<dom.Element> dateElements = document.querySelectorAll('td._artclTdRdate');
-
-            for (int i = 0; i < linkElements.length; i++) {
-              var link = linkElements[i];
-              String? href = link.attributes['href'];
-              if (href != null) {
-                String noticeTitle = link.text.trim().replaceAll('새글', '');
-                String noticeDate = dateElements[i].text.trim();
-                String noticeType = document.querySelector('#contentWrap > div.h1Title')?.text.trim() ?? '';
-
-                // 중복 확인
-                if (!existingTitles.contains(noticeTitle)) {
-                  // Firestore에 추가할 데이터 생성
-                  Map<String, String> noticeData = {
-                    'type': noticeType,
-                    'title': noticeTitle,
-                    'date': noticeDate,
-                    'url': "$baseUrl2$href",
-                  };
-                  noticeList.add(noticeData); // 리스트에 추가
-                  existingTitles.add(noticeTitle); // 중복 확인용 리스트에 추가
-                }
-              }
+            if (!existingTitles.contains(noticeTitle)) {
+              setState(() {
+                notices.add({
+                  'title': noticeTitle,
+                  'date': noticeDate,
+                  'url': "$baseUrl2$href"
+                });
+                existingTitles.add(noticeTitle);
+              });
             }
           }
         }
       }
-
-      // 한 번에 Firestore에 추가
-      await addNoticesToFirestore(noticeList);
-    } catch (e) {
-      print('Error fetching notices: $e');
     }
   }
 
-// 공지사항 한 번에 Firestore에 추가
-  Future<void> addNoticesToFirestore(List<Map<String, String>> notices) async {
+  Future<void> dorm_fetchNotices(String baseUrl, int startPage, int endPage) async {
+    notices = [];
+    List<String> existingTitles = [];
 
-    for (var notice in notices) {
-      await firestore.collection('notices').add(notice);
-    }
-  }
+    for (int page = startPage; page <= endPage; page++) {
+      String url = "$baseUrl?page=$page";
+      http.Response response = await http.get(Uri.parse(url)); // 수정된 부분
+      if (response.statusCode == 200) {
+        dom.Document document = parser.parse(response.body);
+        document.querySelectorAll('.fnLeft').forEach((element) {
+          element.remove();
+        });
+        List<dom.Element> linkElements =
+        document.querySelectorAll('a[href^="/bbs/dorm/"][onclick^="jf_viewArtcl"]');
+        List<dom.Element> dateElements =
+        document.querySelectorAll('td._artclTdRdate');
+        for (int i = 0; i < linkElements.length; i++) {
+          var link = linkElements[i];
+          String? href = link.attributes['href'];
+          if (href != null) {
+            String noticeTitle = link.text.trim();
+            noticeTitle = noticeTitle.replaceAll('새글', '');
+            String noticeType = document.querySelector('#contentWrap > div.h1Title')?.text.trim() ?? '';
 
+            String noticeDate = dateElements[i].text.trim();
 
-
-  Future<void> dorm_fetchNotices(Map<String, String> categoryUrls, int startPage, int endPage) async {
-    try {
-      List<String> existingTitles = []; // 중복 확인용 리스트
-      List<Map<String, String>> dormnoticeList = []; // 공지사항 리스트
-
-      for (String category in categoryUrls.values) {
-        for (int page = startPage; page <= endPage; page++) {
-          String url = "${categoryUrls[category]}?page=$page";
-          http.Response response = await http.get(Uri.parse(url));
-
-          if (response.statusCode == 200) {
-            dom.Document document = parser.parse(response.body);
-            document.querySelectorAll('.fnLeft').forEach((element) {
-              element.remove();
-            });
-
-            List<dom.Element> linkElements = document.querySelectorAll('a[href^="/bbs/dorm/"][onclick^="jf_viewArtcl"]');
-            List<dom.Element> dateElements = document.querySelectorAll('td._artclTdRdate');
-
-            for (int i = 0; i < linkElements.length; i++) {
-              var link = linkElements[i];
-              String? href = link.attributes['href'];
-              if (href != null) {
-                String noticeTitle = link.text.trim().replaceAll('새글', '');
-                String noticeDate = dateElements[i].text.trim();
-                String noticeType = document.querySelector('#contentWrap > div.h1Title')?.text.trim() ?? '';
-
-                // 중복 확인
-                if (!existingTitles.contains(noticeTitle)) {
-                  // Firestore에 추가할 데이터 생성
-                  Map<String, String> noticeData = {
-                    'type': noticeType,
-                    'title': noticeTitle,
-                    'date': noticeDate,
-                    'url': "$dorm_baseUrl2$href",
-                  };
-                  dormnoticeList.add(noticeData); // 리스트에 추가
-                  existingTitles.add(noticeTitle); // 중복 확인용 리스트에 추가
-                }
-              }
+            if (!existingTitles.contains(noticeTitle)) {
+              setState(() {
+                notices.add({
+                  'noticetype': noticeType,
+                  'title': noticeTitle,
+                  'date': noticeDate,
+                  'url': "$dorm_baseUrl2$href"
+                });
+                existingTitles.add(noticeTitle);
+              });
             }
           }
         }
       }
-
-      // 한 번에 Firestore에 추가
-      await addNoticesToFirestore(dormnoticeList);
-    } catch (e) {
-      print('Error fetching notices: $e');
     }
   }
 
@@ -172,44 +140,16 @@ class _NoticeBoardState extends State<NoticeBoard> {
   void selectCategory(String category) {
     setState(() {
       currentCategory = category;
-      fetchNoticesFromFirestore(category); // Firestore에서 해당 카테고리의 공지사항을 가져오도록 수정
+      fetchNotices(categoryUrls[currentCategory]!, 1, 5);
     });
   }
 
   void dorm_selectCategory(String category) {
     setState(() {
       currentCategory = category;
-      fetchNoticesFromFirestore(category); // Firestore에서 해당 카테고리의 공지사항을 가져오도록 수정
+      dorm_fetchNotices(dorm_categoryUrls[currentCategory]!, 1, 5);
     });
   }
-
-  Future<void> fetchNoticesFromFirestore(String category) async {
-    try {
-      // 해당 카테고리의 공지사항 가져오기
-      QuerySnapshot querySnapshot = await FirebaseFirestore.instance
-          .collection('notices')
-          .where('category', isEqualTo: category)
-          .get();
-
-      List<Map<String, String>> fetchedNotices = [];
-
-      querySnapshot.docs.forEach((doc) {
-        Map<String, String> noticeData = {
-          'title': doc['title'],
-          'date': doc['date'],
-          'url': doc['url'],
-        };
-        fetchedNotices.add(noticeData);
-      });
-
-      setState(() {
-        notices = fetchedNotices;
-      });
-    } catch (e) {
-      print('Error fetching notices from Firestore: $e');
-    }
-  }
-
 
   void searchNotices(String keyword) {
     List<Map<String, String>> filteredNotices = [];
@@ -220,6 +160,16 @@ class _NoticeBoardState extends State<NoticeBoard> {
     }
     setState(() {
       notices = filteredNotices;
+    });
+  }
+
+  void toggleBookmark(String url) {
+    setState(() {
+      if (bookmarks.contains(url)) {
+        bookmarks.remove(url);
+      } else {
+        bookmarks.add(url);
+      }
     });
   }
 
@@ -313,19 +263,17 @@ class _NoticeBoardState extends State<NoticeBoard> {
                 ListTile(
                   title: Text('자연'),
                   onTap: () {
-                    // 도서관 홈페이지 URL
                     String Y_libraryUrl = 'https://lib.mju.ac.kr/guide/bulletin/notice?max=10&offset=0&bulletinCategoryId=15';
                     launchUrl(Y_libraryUrl);
-                    Navigator.pop(context); // Drawer를 닫습니다.
+                    Navigator.pop(context);
                   },
                 ),
                 ListTile(
                   title: Text('인문'),
                   onTap: () {
-                    // 도서관 홈페이지 URL
                     String S_libraryUrl = 'https://lib.mju.ac.kr/guide/bulletin/notice?max=10&offset=0&bulletinCategoryId=14';
                     launchUrl(S_libraryUrl);
-                    Navigator.pop(context); // Drawer를 닫습니다.
+                    Navigator.pop(context);
                   },
                 ),
               ],
@@ -347,11 +295,9 @@ class _NoticeBoardState extends State<NoticeBoard> {
           String title = notices[index]['title']!;
           String date = notices[index]['date']!;
           String url = notices[index]['url']!;
-          Color? bgColor =
-          index.isEven ? Colors.grey[200] : Colors.white;
+          Color? bgColor = index.isEven ? Colors.grey[200] : Colors.white;
 
           bool isSpecialNotice = title.contains('일반공지');
-
           title = title.replaceAll(RegExp(r'\[[^\]]*일반공지[^\]]*\]'), '');
 
           return GestureDetector(
@@ -373,9 +319,17 @@ class _NoticeBoardState extends State<NoticeBoard> {
                       Expanded(
                         child: Text(
                           title,
-                          style: TextStyle(
-                              fontSize: 18, fontWeight: FontWeight.bold),
+                          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                         ),
+                      ),
+                      IconButton(
+                        icon: Icon(
+                          bookmarks.contains(url) ? Icons.star : Icons.star_border,
+                          color: Colors.yellow[800],
+                        ),
+                        onPressed: () {
+                          toggleBookmark(url);
+                        },
                       ),
                     ],
                   ),
@@ -390,7 +344,7 @@ class _NoticeBoardState extends State<NoticeBoard> {
           );
         },
       )
-          : Center(child: CircularProgressIndicator()), // 데이터 로딩 중이면 로딩 표시
+          : Center(child: CircularProgressIndicator()),
       bottomNavigationBar: BottomNavigationBar(
         items: [
           BottomNavigationBarItem(
@@ -398,8 +352,8 @@ class _NoticeBoardState extends State<NoticeBoard> {
             label: '홈',
           ),
           BottomNavigationBarItem(
-            icon: Icon(Icons.timeline),
-            label: '타임라인',
+            icon: Icon(Icons.bookmark),
+            label: '즐겨찾기',
           ),
           BottomNavigationBarItem(
             icon: Icon(Icons.assignment),
@@ -410,25 +364,31 @@ class _NoticeBoardState extends State<NoticeBoard> {
             label: '설정',
           ),
         ],
-        currentIndex: 0, // 현재 선택된 아이템의 인덱스
+        currentIndex: 0,
         selectedItemColor: Colors.lightBlue,
         unselectedItemColor: Colors.black54,
+        unselectedLabelStyle: TextStyle(color: Colors.grey[700]),
+        showUnselectedLabels: true,
         onTap: (index) {
-          // Handle item tap
           switch (index) {
             case 0:
-            // Handle home button tap
               selectCategory('일반 공지');
               break;
             case 1:
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => BookmarkScreen(bookmarks: bookmarks)),
+              );
               break;
             case 2:
-            // Handle keyword button tap
-            // Navigate to keyword screen
+              var userId = FirebaseAuth.instance.currentUser?.uid ?? 'userId';
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => KeywordPage(userId: userId,)),
+              );
               break;
             case 3:
-            // Handle settings button tap
-            // Navigate to settings screen
+            // 설정 화면으로 이동하는 코드를 여기에 추가할 수 있습니다.
               break;
           }
         },
@@ -436,3 +396,35 @@ class _NoticeBoardState extends State<NoticeBoard> {
     );
   }
 }
+
+class BookmarkScreen extends StatelessWidget {
+  final List<String> bookmarks;
+
+  BookmarkScreen({required this.bookmarks});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Text('즐겨찾기'),
+      ),
+      body: ListView.builder(
+        itemCount: bookmarks.length,
+        itemBuilder: (context, index) {
+          final bookmarkInfo = bookmarks[index].split(', ');
+          final title = bookmarkInfo[0];
+          final date = bookmarkInfo[1];
+          return ListTile(
+            title: Text(title),
+            subtitle: Text(date),
+            onTap: () {
+              // 여기에 URL로 이동하는 코드 추가
+            },
+          );
+        },
+      ),
+    );
+  }
+}
+
+

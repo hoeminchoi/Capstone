@@ -1,17 +1,17 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'fetchNotes.dart';
-import 'dorm_fetchNotices.dart';
+import 'fetchNotices.dart'; // 학교 공지사항을 가져오는 함수
+import 'dorm_fetchNotices.dart'; // 기숙사 공지사항을 가져오는 함수
 
 Map<String, String> categoryUrls = {
-  '일반 공지': 'https://www.mju.ac.kr/mjukr/255/subview.do',
-  '행사 공지': 'https://www.mju.ac.kr/mjukr/256/subview.do',
-  '학사 공지': 'https://www.mju.ac.kr/mjukr/257/subview.do',
-  '장학학자금 공지': 'https://www.mju.ac.kr/mjukr/259/subview.do',
-  '진로취업창업 공지': 'https://www.mju.ac.kr/mjukr/260/subview.do',
-  '학생활동 공지': 'https://www.mju.ac.kr/mjukr/5364/subview.do',
-  '입찰 공지': 'https://www.mju.ac.kr/mjukr/261/subview.do',
-  '대학 안전 공지': 'https://www.mju.ac.kr/mjukr/8972/subview.do',
-  '학칙개정 사전 공고': 'https://www.mju.ac.kr/mjukr/4450/subview.do',
+  '일반공지': 'https://www.mju.ac.kr/mjukr/255/subview.do',
+  '행사공지': 'https://www.mju.ac.kr/mjukr/256/subview.do',
+  '학사공지': 'https://www.mju.ac.kr/mjukr/257/subview.do',
+  '장학학자금공지': 'https://www.mju.ac.kr/mjukr/259/subview.do',
+  '진로취업창업공지': 'https://www.mju.ac.kr/mjukr/260/subview.do',
+  '학생활동공지': 'https://www.mju.ac.kr/mjukr/5364/subview.do',
+  '입찰공지': 'https://www.mju.ac.kr/mjukr/261/subview.do',
+  '대학안전공지': 'https://www.mju.ac.kr/mjukr/8972/subview.do',
+  '학칙개정사전공고': 'https://www.mju.ac.kr/mjukr/4450/subview.do',
 };
 
 Map<String, String> dormCategoryUrls = {
@@ -20,12 +20,15 @@ Map<String, String> dormCategoryUrls = {
 };
 
 Future<void> saveNoticesToFirestore(List<Map<String, String>> notices, String collectionName) async {
-  // Firestore 초기화
   FirebaseFirestore firestore = FirebaseFirestore.instance;
 
-  // 데이터 저장
   for (var notice in notices) {
-    await firestore.collection(collectionName).add(notice);
+    await firestore.collection(collectionName).add({
+      'category': notice['category'] ?? 'Unknown',
+      'title': notice['title'] ?? 'No Title',
+      'date': notice['date'] ?? 'No Date',
+      'url': notice['url'] ?? 'No URL',
+    });
   }
 }
 
@@ -36,16 +39,16 @@ void testNoticesMain() async {
     // fetchNotices 함수를 호출하여 공지사항 데이터를 가져옴
     List<Map<String, String>> notices = await fetchNotices(url, 1, 1);
     // Firestore에 notices 저장
-    await saveNoticesToFirestore(notices, categoryName);
+    await saveNoticesToFirestore(notices, 'notices_$categoryName');
   }
+
   // dorm_fetchNotices 함수를 호출하여 기숙사 공지사항 데이터를 가져옴
   for (var entry in dormCategoryUrls.entries) {
     String categoryName = entry.key;
     String url = entry.value;
-
     // dorm_fetchNotices 함수를 호출하여 기숙사 공지사항 데이터를 가져옴
     List<Map<String, String>> dormNotices = await dormFetchNotices(url, 1, 1);
     // Firestore에 dormNotices 저장
-    await saveNoticesToFirestore(dormNotices, categoryName);
+    await saveNoticesToFirestore(dormNotices, 'dormNotices_$categoryName');
   }
 }

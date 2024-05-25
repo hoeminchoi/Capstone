@@ -104,7 +104,7 @@ class _KeywordPageState extends State<KeywordPage> {
   Future<void> _saveKeywordsToFirestore(List<String> keywords) async {
     try {
       // Firestore에 키워드 목록을 저장합니다.
-      await FirebaseFirestore.instance.collection('users').doc(widget.userId).set({
+      await FirebaseFirestore.instance.collection('users').doc(widget.userId).update({
         'keywords': keywords,
       });
     } catch (e) {
