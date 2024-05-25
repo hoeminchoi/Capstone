@@ -27,6 +27,7 @@ class _NoticeBoardState extends State<NoticeBoard> {
 
   @override
   void initState() {
+    _initializeHive(); // Hive 초기화
     super.initState();
     currentCategory = '일반공지';
     categoryUrls = {
@@ -44,7 +45,6 @@ class _NoticeBoardState extends State<NoticeBoard> {
       '기숙사공지': 'dormNotices_기숙사공지',
       '입퇴사공지': 'dormNotices_입퇴사공지',
     };
-    _initializeHive(); // Hive 초기화
     userId = FirebaseAuth.instance.currentUser?.uid ?? '';
     fetchData(); // 데이터를 가져옵니다.
 

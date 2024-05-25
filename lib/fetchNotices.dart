@@ -24,13 +24,12 @@ Future<List<Map<String, String>>> fetchNotices(String baseUrl, int startPage, in
           String noticeTitle = link.text.trim();
           String noticeDate = dateElements[i].text.trim();
 
-          // 일반공지 여부 확인 및 제목 수정
-          bool isSpecialNotice = noticeTitle.contains('일반공지');
+          if (noticeTitle.contains('일반공지')) {
+            continue; // '일반공지'가 포함된 공지는 무시하고 다음으로 넘어감
+          }
           noticeTitle = noticeTitle.replaceAll(RegExp(r'\[[^\]]*일반공지[^\]]*\]'), '');
 
           if (!existingTitles.contains(noticeTitle)) {
-            // 현재 시간(타임스탬프) 추가
-            String timestamp = DateFormat('yyyy-MM-ddTHH:mm:ss').format(DateTime.now());
 
             notices.add({
               'category': noticeType ?? '유형없음',

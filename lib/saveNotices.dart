@@ -23,12 +23,24 @@ Future<void> saveNoticesToFirestore(List<Map<String, String>> notices, String co
   FirebaseFirestore firestore = FirebaseFirestore.instance;
 
   for (var notice in notices) {
-    await firestore.collection(collectionName).add({
-      'category': notice['category'] ?? 'Unknown',
-      'title': notice['title'] ?? 'No Title',
-      'date': notice['date'] ?? 'No Date',
-      'url': notice['url'] ?? 'No URL',
-    });
+    String noticeTitle = notice['title'] ?? 'No Title';
+
+    // Firestore에서 동일한 제목이 있는지 확인
+    QuerySnapshot query = await firestore.collection(collectionName)
+        .where('title', isEqualTo: noticeTitle)
+        .get();
+
+    if (query.docs.isEmpty) {
+
+      await firestore.collection(collectionName).add({
+        'category': notice['category'] ?? 'Unknown',
+        'title': noticeTitle,
+        'date': notice['date'] ?? 'No Date',
+        'url': notice['url'] ?? 'No URL',
+      });
+    } else {
+      print('Duplicate title found: $noticeTitle, skipping...');
+    }
   }
 }
 

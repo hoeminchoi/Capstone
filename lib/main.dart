@@ -14,6 +14,7 @@ void main() async{
   );
   final appDocumentDirectory = await path_provider.getApplicationDocumentsDirectory();
   Hive.init(appDocumentDirectory.path);
+  await Hive.openBox<Map>('bookmarkBox');
   testNoticesMain();
   runApp(const SplashScreen()); // MyApp 위젯을 실행하여 앱을 시작
 }

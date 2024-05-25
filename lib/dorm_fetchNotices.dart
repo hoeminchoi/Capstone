@@ -30,8 +30,10 @@ Future<List<Map<String, String>>> dormFetchNotices(String baseUrl, int startPage
           noticeTitle = noticeTitle.replaceAll('새글', '');
           String noticeDate = dateElements[i].text.trim();
 
-          // 일반공지 여부 확인 및 제목 수정
-          bool isSpecialNotice = noticeTitle.contains('일반공지');
+          if (noticeTitle.contains('일반공지')) {
+            continue; // '일반공지'가 포함된 공지는 무시하고 다음으로 넘어감
+          }
+
           noticeTitle = noticeTitle.replaceAll(RegExp(r'\[[^\]]*일반공지[^\]]*\]'), '');
 
           if (!existingTitles.contains(noticeTitle)) {
