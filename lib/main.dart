@@ -6,6 +6,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:hive/hive.dart';
 import 'package:path_provider/path_provider.dart' as path_provider;
 import 'saveNotices.dart';
+import 'Fcm.dart';
 
 void main() async{
   WidgetsFlutterBinding.ensureInitialized(); // Flutter 바인딩이 초기화되었는지 확인합니다.
@@ -16,6 +17,7 @@ void main() async{
   Hive.init(appDocumentDirectory.path);
   await Hive.openBox<Map>('bookmarkBox');
   testNoticesMain();
+  initializeNotification();
   runApp(const SplashScreen()); // MyApp 위젯을 실행하여 앱을 시작
 }
 

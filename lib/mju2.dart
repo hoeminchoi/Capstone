@@ -152,7 +152,7 @@ class _NoticeBoardState extends State<NoticeBoard> {
             style: TextStyle(fontSize: 30),
           ),
           foregroundColor: Colors.white,
-          backgroundColor: Colors.lightBlue,
+          backgroundColor: Colors.indigo,
           centerTitle: true,
           elevation: 0,
           actions: [
