@@ -18,7 +18,7 @@ const sendNotification = (newValue, collectionName, userToken) => {
       return null;
     })
     .catch((error) => {
-      console.log("Error sending message:", error);
+      console.error("Error sending message:", error);
     });
 };
 
@@ -32,12 +32,16 @@ const checkAndSendNotification = async (newValue, collectionName) => {
       keywords.forEach((keyword) => {
         if (newValue.title.includes(keyword)) {
           const userToken = userData.fcmToken; // 사용자의 FCM 토큰
-          sendNotification(newValue, collectionName, userToken);
+          if (userToken) {
+            sendNotification(newValue, collectionName, userToken);
+          } else {
+            console.warn(`User ${userDoc.id} does not have a valid FCM token`);
+          }
         }
       });
     });
   } catch (error) {
-    console.log("Error checking keywords and sending notifications:", error);
+    console.error("Error checking keywords and sending notifications:", error);
   }
 };
 
@@ -117,4 +121,3 @@ exports.sendNotificationOnEventNotices = functions.firestore
     const newValue = snapshot.data();
     return checkAndSendNotification(newValue, "행사공지");
   });
-
